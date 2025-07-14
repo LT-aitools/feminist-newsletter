@@ -10,8 +10,8 @@ from urllib.parse import urlparse, parse_qs
 import cv2
 import numpy as np
 from PIL import Image
-import pytesseract
 from io import BytesIO
+from google.cloud import vision
 
 from config import TIME_PATTERNS
 
@@ -161,11 +161,9 @@ class TimeExtractor:
     
     def _extract_time_from_image(self, image: np.ndarray) -> Optional[Dict[str, str]]:
         """
-        Extract time information from image using OCR.
-        
+        Extract time information from image using Google Cloud Vision OCR.
         Args:
             image: OpenCV image array
-            
         Returns:
             Dictionary with 'start' and optionally 'end' time strings (HH:MM format) 
             or None if not found
@@ -173,18 +171,37 @@ class TimeExtractor:
         try:
             # Preprocess image for better OCR
             processed_image = self._preprocess_image(image)
-            
-            # Extract text using OCR
-            text = pytesseract.image_to_string(processed_image, lang='heb+eng')
-            self.logger.debug(f"OCR extracted text: {text[:200]}...")
-            
+
+            # Convert processed image to bytes (JPEG)
+            pil_image = Image.fromarray(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB))
+            img_byte_arr = BytesIO()
+            pil_image.save(img_byte_arr, format='JPEG')
+            img_bytes = img_byte_arr.getvalue()
+
+            # Use Google Cloud Vision API for OCR
+            client = vision.ImageAnnotatorClient()
+            vision_image = vision.Image(content=img_bytes)
+            response = client.text_detection(image=vision_image)
+            texts = response.text_annotations
+            if texts:
+                text = texts[0].description
+                self.logger.debug(f"Vision OCR extracted text: {text[:200]}...")
+                print("\n--- DEBUG: Vision OCR Output ---")
+                print(text)
+                print("--- END DEBUG ---\n")
+            else:
+                text = ''
+                self.logger.warning("Vision OCR found no text.")
+
             # Look for time patterns in the extracted text
             extracted_times = self._find_time_in_text(text)
-            
+            if not extracted_times:
+                print("\n--- DEBUG: No time found in OCR output for this image ---")
+                print(text)
+                print("--- END DEBUG ---\n")
             return extracted_times
-            
         except Exception as e:
-            self.logger.error(f"Error extracting time from image: {str(e)}")
+            self.logger.error(f"Error extracting time from image (Vision API): {str(e)}")
             return None
     
     def _preprocess_image(self, image: np.ndarray) -> np.ndarray:

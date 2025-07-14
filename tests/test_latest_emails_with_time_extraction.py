@@ -2,6 +2,9 @@
 Test script to process the latest real emails with the new time extraction functionality.
 This ensures that event details and titles are preserved correctly in production.
 """
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import logging
 from datetime import datetime, timedelta
 from newsletter_processor import NewsletterProcessor
