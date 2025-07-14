@@ -29,7 +29,7 @@ def create_oauth_credentials():
             creds.refresh(Request())
         else:
             # Create a simple OAuth2 flow
-            flow = InstalledAppFlow.from_client_secrets(
+            flow = InstalledAppFlow.from_client_secrets_file(
                 'client_secrets.json',  # We'll create this
                 SCOPES
             )

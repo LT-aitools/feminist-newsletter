@@ -103,6 +103,14 @@ class CalendarHandler:
             self.logger.error(f"Calendar authentication failed: {str(e)}")
             return False
     
+    def get_service(self):
+        """
+        Get the Calendar service object.
+        """
+        if not self.service:
+            raise RuntimeError("Calendar service not initialized. Call authenticate() first.")
+        return self.service
+    
     def create_event(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Create a calendar event.

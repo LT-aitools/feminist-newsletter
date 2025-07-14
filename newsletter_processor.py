@@ -18,6 +18,7 @@ from text_parser import (
     extract_time_from_text,
     create_event_description
 )
+from time_extractor import TimeExtractor
 
 
 @dataclass
@@ -33,6 +34,8 @@ class EventData:
     is_virtual: bool
     event_type: str
     links: List[Dict[str, str]] = None
+    time_verified: bool = False
+    end_time: str = None
     
     def __post_init__(self):
         if self.links is None:
@@ -45,6 +48,7 @@ class NewsletterProcessor:
     def __init__(self):
         self.config = get_config()
         self.logger = logging.getLogger(__name__)
+        self.time_extractor = TimeExtractor()
     
     def process_newsletter_email(self, email_content: str, html_content: str = None) -> List[EventData]:
         """
@@ -69,10 +73,17 @@ class NewsletterProcessor:
         
         # Parse each event block
         events = []
+        available_links = links.copy()  # Create a copy to consume links from
+        
         for i, block in enumerate(event_blocks):
             try:
-                event = self._parse_event_block(block, links)
+                event = self._parse_event_block(block, available_links, plain_text, event_blocks, html_content)
                 if event:
+                    # Remove used links from available_links so they can't be reused
+                    for used_link in event.links:
+                        if used_link in available_links:
+                            available_links.remove(used_link)
+                    
                     events.append(event)
                     self.logger.info(f"Parsed event {i+1}: {event.title}")
             except Exception as e:
@@ -89,21 +100,32 @@ class NewsletterProcessor:
         import re
         
         links = []
-        # Look for links with 'בהזמנה' or 'בלינק' in the text
-        pattern = r'href=[\'"]([^\'"]+)[\'"][^>]*>([^<]+)</a>'
-        matches = re.findall(pattern, html_content)
         
-        for url, label in matches:
-            label = label.strip()
-            if 'בהזמנה' in label or 'בלינק' in label:
-                links.append({
-                    'url': url,
-                    'label': label
-                })
+        # First, find all <a> tags and check if they contain invitation text
+        a_tag_pattern = r'<a[^>]+href=[\'"]([^\'"]+)[\'"][^>]*>(.*?)</a>'
+        a_matches = re.findall(a_tag_pattern, html_content, re.DOTALL | re.IGNORECASE)
+        
+        for url, content in a_matches:
+            # Remove HTML tags from content to get clean text
+            clean_content = re.sub(r'<[^>]+>', '', content).strip()
+            if 'בהזמנה' in clean_content or 'בלינק' in clean_content:
+                # Prefer MailChimp tracking URLs over other types
+                if 'wordpress.us13.list-manage.com/track/click' in url:
+                    links.append({
+                        'url': url,
+                        'label': clean_content
+                    })
+                elif not links:  # Only add non-MailChimp URLs if no MailChimp URLs found
+                    links.append({
+                        'url': url,
+                        'label': clean_content
+                    })
         
         return links
     
-    def _parse_event_block(self, block: str, links: List[Dict[str, str]]) -> Optional[EventData]:
+
+    
+    def _parse_event_block(self, block: str, links: List[Dict[str, str]] = None, plain_text: str = "", event_blocks: List[str] = None, html_content: str = None) -> Optional[EventData]:
         """
         Parse a single event block into EventData.
         Based on the existing Apps Script parseEventBlock function.
@@ -132,12 +154,57 @@ class NewsletterProcessor:
                 if not any(word in block for word in ['19:00', '20:00', '21:00', '18:00']):
                     title += ' (זמן מדויק של האירוע בזימון)'
             
-            # Find matching links for this event
+            # DEBUG: Print HTML positions of event blocks and links
+            if links and html_content and event_blocks:
+                print("\n--- DEBUG: HTML Event Block and Link Positions ---")
+                # Find HTML positions for all event blocks
+                block_html_positions = []
+                for eb in event_blocks:
+                    pos = html_content.find(eb[:30])
+                    block_html_positions.append(pos)
+                    print(f"Event block start (first 30 chars): {eb[:30]!r} at HTML pos {pos}")
+                # Find HTML positions for all links
+                for link in links:
+                    url_pos = html_content.find(link['url'])
+                    print(f"Link: {link['label']!r} {link['url']} at HTML pos {url_pos}")
+                print("--- END DEBUG ---\n")
+
+            # Find matching links for this event (pure HTML-order-based matching)
             matching_links = []
-            for link in links:
-                if link['label'] in block:
-                    matching_links.append(link)
-            
+            if links and html_content and event_blocks:
+                # Find HTML positions for all event blocks
+                block_html_positions = []
+                for eb in event_blocks:
+                    pos = html_content.find(eb[:30])
+                    block_html_positions.append(pos)
+                # Find this event's HTML start and the next event's start
+                block_index = event_blocks.index(block)
+                this_block_html_start = block_html_positions[block_index]
+                if block_index + 1 < len(block_html_positions):
+                    next_block_html_start = block_html_positions[block_index + 1]
+                else:
+                    next_block_html_start = len(html_content)
+                # Build a list of (link, html_pos) for all links
+                link_positions = []
+                for link in links:
+                    url_pos = html_content.find(link['url'])
+                    if url_pos != -1:
+                        link_positions.append((link, url_pos))
+                # Sort links by their position in the HTML
+                link_positions.sort(key=lambda x: x[1])
+                # For each label type, pick the first link in the HTML range for this event
+                for label_type in ['בהזמנה', 'בלינק']:
+                    for link, url_pos in link_positions:
+                        if label_type in link['label'] and this_block_html_start <= url_pos < next_block_html_start:
+                            matching_links.append(link)
+                            break
+            else:
+                # Fallback: original label matching if no html_content
+                if links:
+                    for link in links:
+                        if link['label'] in block:
+                            matching_links.append(link)
+
             # Create event data
             event = EventData(
                 title=title,
@@ -149,8 +216,13 @@ class NewsletterProcessor:
                 description=block,
                 is_virtual=is_virtual,
                 event_type=event_type,
-                links=matching_links
+                links=matching_links,
+                time_verified=False
             )
+            
+            # Try to extract time from invitation links
+            if matching_links:
+                event = self._enhance_event_with_time(event)
             
             return event
             
@@ -159,14 +231,64 @@ class NewsletterProcessor:
             self.logger.debug(f"Block content: {block[:200]}...")
             return None
     
-    def enhance_event_with_time(self, event: EventData) -> EventData:
+    def _enhance_event_with_time(self, event: EventData) -> EventData:
         """
-        Attempt to extract accurate time from invitation links.
-        This will be enhanced with OCR functionality later.
+        Attempt to extract accurate time from invitation links using OCR.
         """
-        # For now, return the event as-is
-        # TODO: Implement OCR-based time extraction
-        return event
+        try:
+            # Look for invitation links
+            invitation_links = [link for link in event.links 
+                              if 'בהזמנה' in link.get('label', '')]
+            
+            if not invitation_links:
+                return event
+            
+            # Try to extract time from each invitation link until one succeeds
+            for i, link in enumerate(invitation_links):
+                mailchimp_url = link['url']
+                self.logger.info(f"Trying invitation link {i+1}/{len(invitation_links)} for event '{event.title}': {mailchimp_url}")
+                
+                extracted_times = self.time_extractor.extract_time_from_invitation_link(mailchimp_url)
+                
+                if extracted_times:
+                    # Update event with extracted times
+                    if isinstance(extracted_times, dict):
+                        event.time = extracted_times['start']
+                        if 'end' in extracted_times:
+                            event.end_time = extracted_times['end']
+                            # Calculate duration from start and end times
+                            start_hour, start_minute = map(int, extracted_times['start'].split(':'))
+                            end_hour, end_minute = map(int, extracted_times['end'].split(':'))
+                            start_minutes = start_hour * 60 + start_minute
+                            end_minutes = end_hour * 60 + end_minute
+                            event.duration = end_minutes - start_minutes
+                            self.logger.info(f"Updated event '{event.title}' with verified time range: {extracted_times['start']} - {extracted_times['end']} ({event.duration} minutes)")
+                        else:
+                            self.logger.info(f"Updated event '{event.title}' with verified start time: {extracted_times['start']}")
+                    else:
+                        # Backward compatibility for single time string
+                        event.time = extracted_times
+                        self.logger.info(f"Updated event '{event.title}' with verified time: {extracted_times}")
+                    
+                    event.time_verified = True
+                    
+                    # Remove the note about time being in invitation if it was added
+                    if ' (זמן מדויק של האירוע בזימון)' in event.title:
+                        event.title = event.title.replace(' (זמן מדויק של האירוע בזימון)', '')
+                    
+                    # Success - no need to try more links
+                    break
+                else:
+                    self.logger.info(f"Link {i+1} failed for event '{event.title}' - trying next link")
+            else:
+                # All links failed
+                self.logger.info(f"Could not extract time for event '{event.title}' from any invitation link - using default time")
+            
+            return event
+            
+        except Exception as e:
+            self.logger.error(f"Error enhancing event with time extraction: {str(e)}")
+            return event
     
     def check_for_duplicate_event(self, calendar_service, title: str, date: datetime) -> Optional[Dict[str, Any]]:
         """
@@ -224,7 +346,7 @@ class NewsletterProcessor:
             # Create event body
             event_body = {
                 'summary': event.title,
-                'description': create_event_description(event),
+                'description': event.description,
                 'start': {
                     'dateTime': start_datetime.isoformat(),
                     'timeZone': self.config['timezone']
@@ -239,6 +361,10 @@ class NewsletterProcessor:
             # Add organizer if available
             if event.organizer:
                 event_body['description'] += f"\n\nמארגן: {event.organizer}"
+            
+            # Add time verification status
+            if not event.time_verified:
+                event_body['description'] += f"\n\n⚠️ זמן משוער: {event.time} (זמן מדויק בהזמנה)"
             
             # Add links if available
             if event.links:

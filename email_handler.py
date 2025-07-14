@@ -19,7 +19,11 @@ class GmailHandler:
     """Handles Gmail API operations for newsletter processing."""
     
     # Gmail API scopes
-    SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+    SCOPES = [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/cloud-vision'
+    ]
     
     def __init__(self):
         self.config = get_config()

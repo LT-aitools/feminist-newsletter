@@ -45,16 +45,22 @@ This project automates the processing of feminist newsletter emails from the Isr
 ## 📁 Project Structure
 
 ```
-newsletter-automation/
-├── main.py                 # Cloud Function entry point
-├── newsletter_processor.py # Core processing logic
-├── email_handler.py        # Gmail API integration
-├── calendar_handler.py     # Calendar API integration
-├── text_parser.py          # Hebrew text parsing utilities
-├── config.py              # Configuration and constants
-├── requirements.txt       # Python dependencies
-├── test_core_functionality.py # Test script
-└── README.md              # This file
+feminist-newsletter/
+├── main.py                  # Cloud Function entry point
+├── newsletter_processor.py  # Core processing logic
+├── email_handler.py         # Gmail API integration
+├── calendar_handler.py      # Calendar API integration
+├── text_parser.py           # Hebrew text parsing utilities
+├── config.py                # Configuration and constants
+├── requirements.txt         # Python dependencies
+├── tests/                   # All test scripts (test_*.py)
+│   ├── test_core_functionality.py
+│   ├── test_time_extraction.py
+│   ├── ...
+├── debug/                   # All debug scripts (debug_*.py)
+│   ├── debug_link_extraction.py
+│   ├── debug_july10_link.py
+├── README.md                # This file
 ```
 
 ## 🛠️ Installation & Setup
@@ -94,9 +100,13 @@ pip install -r requirements.txt
 
 ## 🧪 Testing
 
-Run the test script to verify core functionality:
+All test scripts are now located in the `tests/` directory. To run a specific test, use:
 ```bash
-python test_core_functionality.py
+python tests/test_core_functionality.py
+```
+Or run all tests:
+```bash
+python -m unittest discover tests
 ```
 
 This will test:
@@ -105,6 +115,13 @@ This will test:
 - Event parsing functions
 - Full processing pipeline
 - Edge cases and error handling
+
+## 🐞 Debugging
+
+All debug scripts are now located in the `debug/` directory. For example, to debug the July 10th invitation link:
+```bash
+python debug/debug_july10_link.py
+```
 
 ## 📋 Core Components
 
