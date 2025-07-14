@@ -50,13 +50,13 @@ class TimeExtractor:
             self.logger.info(f"Found image URL: {image_url}")
             
             # Download and process the image
-            image = self._download_image(image_url)
-            if image is None:
+            image_bytes = self._download_image(image_url)
+            if image_bytes is None:
                 self.logger.warning("Failed to download image")
                 return None
             
             # Extract time using OCR
-            extracted_times = self._extract_time_from_image(image)
+            extracted_times = self._extract_time_from_image(image_bytes)
             if extracted_times:
                 if isinstance(extracted_times, dict):
                     if 'end' in extracted_times:
@@ -132,55 +132,35 @@ class TimeExtractor:
             self.logger.error(f"Error extracting image from HTML: {str(e)}")
             return None
     
-    def _download_image(self, image_url: str) -> Optional[np.ndarray]:
+    def _download_image(self, image_url: str) -> Optional[bytes]:
         """
-        Download image from URL and convert to OpenCV format.
-        
+        Download image from URL and return raw bytes.
         Args:
             image_url: URL of the image to download
-            
         Returns:
-            OpenCV image array or None if download failed
+            Raw image bytes or None if download failed
         """
         try:
             response = self.session.get(image_url, timeout=15)
             response.raise_for_status()
-            
-            # Convert to PIL Image first
-            pil_image = Image.open(BytesIO(response.content))
-            
-            # Convert to OpenCV format (BGR)
-            opencv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
-            
-            self.logger.debug(f"Downloaded image: {opencv_image.shape}")
-            return opencv_image
-            
+            return response.content
         except Exception as e:
             self.logger.error(f"Error downloading image: {str(e)}")
             return None
-    
-    def _extract_time_from_image(self, image: np.ndarray) -> Optional[Dict[str, str]]:
+
+    def _extract_time_from_image(self, image_bytes: bytes) -> Optional[Dict[str, str]]:
         """
         Extract time information from image using Google Cloud Vision OCR.
         Args:
-            image: OpenCV image array
+            image_bytes: Raw image bytes
         Returns:
             Dictionary with 'start' and optionally 'end' time strings (HH:MM format) 
             or None if not found
         """
         try:
-            # Preprocess image for better OCR
-            processed_image = self._preprocess_image(image)
-
-            # Convert processed image to bytes (JPEG)
-            pil_image = Image.fromarray(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB))
-            img_byte_arr = BytesIO()
-            pil_image.save(img_byte_arr, format='JPEG')
-            img_bytes = img_byte_arr.getvalue()
-
-            # Use Google Cloud Vision API for OCR
+            # Use Google Cloud Vision API for OCR on original image bytes
             client = vision.ImageAnnotatorClient()
-            vision_image = vision.Image(content=img_bytes)
+            vision_image = vision.Image(content=image_bytes)
             response = client.text_detection(image=vision_image)
             texts = response.text_annotations
             if texts:
