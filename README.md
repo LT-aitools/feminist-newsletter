@@ -2,6 +2,30 @@
 
 A Python-based Google Cloud Functions solution for automating the processing of feminist newsletter emails and creating calendar events. This system migrates and enhances the existing Google Apps Script functionality with new OCR-based time extraction features.
 
+## 📋 Project Description
+
+This project automates the processing of feminist newsletter emails from the Israeli Women's Rights movement. It extracts event information from Hebrew newsletter content and automatically creates calendar events, eliminating the need for manual event entry.
+
+### 🎯 **What it does:**
+- **Automatically processes** feminist newsletter emails from Gmail
+- **Extracts event details** from Hebrew text (dates, times, locations, organizers)
+- **Creates calendar events** in Google Calendar with proper timezone handling
+- **Prevents duplicates** using smart duplicate detection
+- **Runs on schedule** via Cloud Scheduler (Sunday, Monday, Tuesday at 7 PM Israel time)
+
+### 🔧 **Key Features:**
+- **Hebrew Text Processing**: Robust RTL text handling and Hebrew date/time parsing
+- **Smart Duplicate Detection**: Prevents creating duplicate calendar events
+- **Multi-Source Support**: Processes both direct newsletters and forwarded emails
+- **Cloud-Native**: Deployed as a Google Cloud Function with automatic scaling
+- **Comprehensive Logging**: Detailed processing statistics and error tracking
+
+### 🚀 **Current Status:**
+- ✅ **Fully Deployed**: Cloud Function is live and operational
+- ✅ **Automated Scheduling**: Runs 3x per week via Cloud Scheduler
+- ✅ **OAuth Integration**: Secure authentication with Gmail and Calendar APIs
+- ✅ **Production Ready**: Processing real newsletter emails and creating events
+
 ## 🚀 Features
 
 ### Core Functionality (Migrated from Apps Script)
