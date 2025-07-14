@@ -1,0 +1,29 @@
+# Sensitive Google OAuth credentials
+client_secrets.json
+token.json
+env_vars.yaml
+
+# Temporary policy files
+allow-service-account-keys.yaml
+
+# Python cache and virtualenv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env/
+.venv/
+venv/
+ENV/
+
+# OS files
+.DS_Store
+
+# Editor/project files
+.vscode/
+.idea/
+*.swp
+
+# Cursor IDE
+.cursorhistory
+.cursorbackup 
