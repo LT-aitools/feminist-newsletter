@@ -90,8 +90,8 @@ def newsletter_processor(request):
         
         # Get recent newsletter emails (last 7 days, regardless of read status) from both senders
         days_back = 7
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
+        end_date = datetime.now() + timedelta(days=1)  # Use tomorrow for 'before' date
+        start_date = datetime.now() - timedelta(days=days_back)
         start_str = start_date.strftime('%Y/%m/%d')
         end_str = end_date.strftime('%Y/%m/%d')
         senders = [config['newsletter_sender'], 'nlevran@gmail.com']

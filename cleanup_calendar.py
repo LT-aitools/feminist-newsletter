@@ -5,6 +5,7 @@ Useful for testing the improved text cleaning.
 import logging
 from datetime import datetime, timedelta
 from calendar_handler import CalendarHandler
+from service_account_auth import ServiceAccountAuth
 from config import get_config
 
 def setup_logging():
@@ -24,13 +25,13 @@ def cleanup_calendar():
     try:
         logger.info("=== CALENDAR CLEANUP ===")
         
-        # Initialize calendar handler
-        calendar_handler = CalendarHandler()
+        # Initialize service account authentication
+        logger.info("Setting up service account authentication...")
+        auth = ServiceAccountAuth()
+        calendar_service = auth.get_calendar_service()
         
-        # Authenticate
-        logger.info("Authenticating with Calendar API...")
-        if not calendar_handler.authenticate():
-            raise RuntimeError("Failed to authenticate with Calendar API")
+        # Initialize calendar handler with service account
+        calendar_handler = CalendarHandler(service=calendar_service)
         
         logger.info(f"Using calendar ID: {calendar_handler.calendar_id}")
         

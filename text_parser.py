@@ -84,15 +84,29 @@ def extract_date(block: str) -> Optional[datetime]:
     day = int(match.group(1))
     month = int(match.group(2))
     current_year = datetime.now().year
-    
-    # Create event date
-    event_date = datetime(current_year, month, day)
     today = datetime.now()
     
-    # If event date is more than 30 days in the past, assume it's next year
+    # Create event date for current year first
+    event_date = datetime(current_year, month, day)
+    
+    # Calculate days difference
     days_diff = (today - event_date).days
-    if days_diff > 30:
-        event_date = datetime(current_year + 1, month, day)
+    
+    # Smart year assignment logic:
+    # 1. If the date is in the future or within the last 60 days, use current year
+    # 2. If the date is more than 60 days in the past, assume next year
+    # 3. Special case: if we're in the first few months of the year and the date is from last year,
+    #    but it's within a reasonable range (e.g., December events), keep it as current year
+    
+    if days_diff > 60:
+        # Only assign to next year if it's significantly in the past
+        # But be more conservative for newsletter events
+        if days_diff > 90:  # More than 3 months in the past
+            event_date = datetime(current_year + 1, month, day)
+        else:
+            # For dates 60-90 days in the past, keep as current year
+            # This handles cases like June events when we're in July
+            pass
     
     return event_date
 
