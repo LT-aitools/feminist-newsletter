@@ -197,7 +197,7 @@ Cloud Function entry point:
 ```python
 CONFIG = {
     'calendar_name': 'Feminist Newsletter Events',
-    'calendar_id': 'c_6eb21b1df804ac26dcbb4cccf5b96af36aa9a53fda9c10d11ddbb3219d191498@group.calendar.google.com',
+    'calendar_id': '5b6f7ad099565ddfa52d0bfe297cedc40ea0321360104f2b61782b5e69480270@group.calendar.google.com',
     'use_service_account': True,
     'timezone': 'Asia/Jerusalem',
     'newsletter_sender': 'sharon.orsh@56456773.mailchimpapp.com',
