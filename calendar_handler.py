@@ -18,11 +18,13 @@ class CalendarHandler:
     # Calendar API scopes
     SCOPES = ['https://www.googleapis.com/auth/calendar']
     
-    def __init__(self):
+    def __init__(self, service=None, calendar_id=None):
         self.config = get_config()
         self.logger = logging.getLogger(__name__)
-        self.service = None
-        self.calendar_id = None
+        self.service = service
+        self.calendar_id = calendar_id or self.config.get('calendar_id')
+        if self.service and self.calendar_id:
+            self.logger.info(f"Initialized CalendarHandler with injected service and calendar_id: {self.calendar_id}")
     
     def authenticate(self) -> bool:
         """

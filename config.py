@@ -7,7 +7,7 @@ from typing import Dict, Any
 # Core Configuration
 CONFIG: Dict[str, Any] = {
     'calendar_name': 'Feminist Newsletter Events',
-    'calendar_id': 'c_6eb21b1df804ac26dcbb4cccf5b96af36aa9a53fda9c10d11ddbb3219d191498@group.calendar.google.com',
+    'calendar_id': '5b6f7ad099565ddfa52d0bfe297cedc40ea0321360104f2b61782b5e69480270@group.calendar.google.com',
     'test_calendar_id': 'c1745d57a6fcefc58c38ea8d81a44075e01cd619485db9eda00441a03362eb7b@group.calendar.google.com',
     'use_test_calendar': False,  # Set to False for production, True for demo/testing
     'use_service_account': True,  # Use service account for Gmail and Vision APIs

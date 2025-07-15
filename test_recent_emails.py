@@ -205,8 +205,10 @@ def create_event_description(event: EventData) -> str:
     description = f"Source: Feminist Newsletter\n"
     if event.description:
         description += f"\n{event.description}\n"
-    if event.link:
-        description += f"\nInvitation link: {event.link}"
+    if event.links:
+        description += f"\nInvitation links:"
+        for link in event.links:
+            description += f"\n- {link['label']}: {link['url']}"
     return description
 
 

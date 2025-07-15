@@ -29,7 +29,7 @@ class TimeExtractor:
     
     def extract_time_from_invitation_link(self, mailchimp_url: str) -> Optional[Dict[str, str]]:
         """
-        Follow MailChimp redirect and extract time from the resulting image.
+        Follow MailChimp redirect and extract time from the resulting content (image or HTML).
         
         Args:
             mailchimp_url: MailChimp tracking URL
@@ -41,22 +41,37 @@ class TimeExtractor:
         try:
             self.logger.info(f"Processing invitation link: {mailchimp_url}")
             
-            # Follow the redirect to get the actual image URL
-            image_url = self._follow_mailchimp_redirect(mailchimp_url)
-            if not image_url:
+            # Follow the redirect to get the actual content
+            content_info = self._follow_mailchimp_redirect(mailchimp_url)
+            if not content_info:
                 self.logger.warning("Failed to follow MailChimp redirect")
                 return None
             
-            self.logger.info(f"Found image URL: {image_url}")
+            content_type = content_info.get('type')
+            content_data = content_info.get('data')
             
-            # Download and process the image
-            image_bytes = self._download_image(image_url)
-            if image_bytes is None:
-                self.logger.warning("Failed to download image")
+            if content_type == 'image':
+                self.logger.info(f"Found image URL: {content_data}")
+                # Download and process the image
+                image_bytes = self._download_image(content_data)
+                if image_bytes is None:
+                    self.logger.warning("Failed to download image")
+                    return None
+                
+                # Extract time using OCR
+                extracted_times = self._extract_time_from_image(image_bytes)
+            elif content_type == 'html':
+                self.logger.info("Found HTML content, extracting time from text")
+                # Extract time directly from HTML text
+                extracted_times = self._extract_time_from_html_text(content_data)
+            elif content_type == 'pdf':
+                self.logger.info(f"Found PDF URL: {content_data}")
+                # Download and extract text from PDF
+                extracted_times = self._extract_time_from_pdf(content_data)
+            else:
+                self.logger.warning(f"Unknown content type: {content_type}")
                 return None
             
-            # Extract time using OCR
-            extracted_times = self._extract_time_from_image(image_bytes)
             if extracted_times:
                 if isinstance(extracted_times, dict):
                     if 'end' in extracted_times:
@@ -68,7 +83,7 @@ class TimeExtractor:
                     self.logger.info(f"Successfully extracted time: {extracted_times}")
                     extracted_times = {'start': extracted_times}
             else:
-                self.logger.warning("No time found in image")
+                self.logger.warning("No time found in content")
             
             return extracted_times
             
@@ -76,15 +91,16 @@ class TimeExtractor:
             self.logger.error(f"Error extracting time from invitation: {str(e)}")
             return None
     
-    def _follow_mailchimp_redirect(self, mailchimp_url: str) -> Optional[str]:
+    def _follow_mailchimp_redirect(self, mailchimp_url: str) -> Optional[Dict[str, str]]:
         """
-        Follow MailChimp redirect to get the actual image URL.
+        Follow MailChimp redirect to get the actual content (image or HTML).
         
         Args:
             mailchimp_url: MailChimp tracking URL
             
         Returns:
-            Actual image URL or None if redirect failed
+            Dictionary with 'type' ('image' or 'html') and 'data' (URL or HTML content)
+            or None if redirect failed
         """
         try:
             # Follow redirects to get the final URL
@@ -96,11 +112,21 @@ class TimeExtractor:
             
             # Check if the final URL is an image
             if self._is_image_url(final_url):
-                return final_url
+                return {'type': 'image', 'data': final_url}
             
-            # If not an image, try to extract image URL from the page content
+            # Check if the final URL is a PDF
+            if self._is_pdf_url(final_url):
+                return {'type': 'pdf', 'data': final_url}
+            
+            # If not an image or PDF, check if it's HTML content
             if 'text/html' in response.headers.get('content-type', ''):
-                return self._extract_image_from_html(response.text)
+                # First try to extract image URL from the page content
+                image_url = self._extract_image_from_html(response.text)
+                if image_url:
+                    return {'type': 'image', 'data': image_url}
+                else:
+                    # If no image found, return the HTML content for text extraction
+                    return {'type': 'html', 'data': response.text}
             
             return None
             
@@ -114,6 +140,12 @@ class TimeExtractor:
         parsed_url = urlparse(url)
         path = parsed_url.path.lower()
         return any(path.endswith(ext) for ext in image_extensions)
+    
+    def _is_pdf_url(self, url: str) -> bool:
+        """Check if URL points to a PDF file."""
+        parsed_url = urlparse(url)
+        path = parsed_url.path.lower()
+        return path.endswith('.pdf')
     
     def _extract_image_from_html(self, html_content: str) -> Optional[str]:
         """Extract image URL from HTML content if redirect led to a webpage."""
@@ -130,6 +162,97 @@ class TimeExtractor:
             
         except Exception as e:
             self.logger.error(f"Error extracting image from HTML: {str(e)}")
+            return None
+    
+    def _extract_time_from_html_text(self, html_content: str) -> Optional[Dict[str, str]]:
+        """
+        Extract time information directly from HTML text content.
+        
+        Args:
+            html_content: HTML content as string
+            
+        Returns:
+            Dictionary with 'start' and optionally 'end' time strings (HH:MM format) 
+            or None if not found
+        """
+        try:
+            # Remove HTML tags to get clean text
+            clean_text = re.sub(r'<[^>]+>', ' ', html_content)
+            # Normalize whitespace
+            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+            
+            self.logger.debug(f"Extracted text from HTML: {clean_text[:200]}...")
+            print("\n--- DEBUG: HTML Text Content ---")
+            print(clean_text)
+            print("--- END DEBUG ---\n")
+            
+            # Look for time patterns in the cleaned text
+            extracted_times = self._find_time_in_text(clean_text)
+            if not extracted_times:
+                print("\n--- DEBUG: No time found in HTML text ---")
+                print(clean_text)
+                print("--- END DEBUG ---\n")
+            
+            return extracted_times
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting time from HTML text: {str(e)}")
+            return None
+    
+    def _extract_time_from_pdf(self, pdf_url: str) -> Optional[Dict[str, str]]:
+        """
+        Extract time information from PDF content.
+        
+        Args:
+            pdf_url: URL of the PDF file
+            
+        Returns:
+            Dictionary with 'start' and optionally 'end' time strings (HH:MM format) 
+            or None if not found
+        """
+        try:
+            # Download the PDF
+            pdf_bytes = self._download_image(pdf_url)  # Reuse the download method
+            if pdf_bytes is None:
+                self.logger.warning("Failed to download PDF")
+                return None
+            
+            # Try to extract text using PyPDF2 if available
+            try:
+                import PyPDF2
+                from io import BytesIO
+                
+                pdf_file = BytesIO(pdf_bytes)
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                
+                # Extract text from all pages
+                text = ""
+                for page in pdf_reader.pages:
+                    text += page.extract_text() + " "
+                
+                self.logger.debug(f"Extracted text from PDF: {text[:200]}...")
+                print("\n--- DEBUG: PDF Text Content ---")
+                print(text)
+                print("--- END DEBUG ---\n")
+                
+                # Look for time patterns in the extracted text
+                extracted_times = self._find_time_in_text(text)
+                if not extracted_times:
+                    print("\n--- DEBUG: No time found in PDF text ---")
+                    print(text)
+                    print("--- END DEBUG ---\n")
+                
+                return extracted_times
+                
+            except ImportError:
+                self.logger.warning("PyPDF2 not available, cannot extract text from PDF")
+                return None
+            except Exception as e:
+                self.logger.error(f"Error extracting text from PDF: {str(e)}")
+                return None
+            
+        except Exception as e:
+            self.logger.error(f"Error processing PDF: {str(e)}")
             return None
     
     def _download_image(self, image_url: str) -> Optional[bytes]:

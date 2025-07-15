@@ -56,19 +56,31 @@ def newsletter_processor(request):
     try:
         logger.info("=== STARTING NEWSLETTER PROCESSING ===")
         
-        # Initialize handlers
+        # Initialize handlers with service account authentication
+        from service_account_auth import ServiceAccountAuth
+        
+        logger.info("Setting up service account authentication...")
+        auth = ServiceAccountAuth()
+        
+        # Initialize handlers with service account
         gmail_handler = GmailHandler()
-        calendar_handler = CalendarHandler()
+        calendar_service = auth.get_calendar_service()
+        calendar_handler = CalendarHandler(service=calendar_service, calendar_id=config.get('calendar_id'))
         newsletter_processor = NewsletterProcessor()
         
-        # Authenticate with APIs
+        # Set up service account authentication
         logger.info("Authenticating with Gmail API...")
-        if not gmail_handler.authenticate():
-            raise RuntimeError("Failed to authenticate with Gmail API")
+        user_email = config.get('gmail_account', 'hello@letstalkaitools.com')
+        gmail_service = auth.get_gmail_service(user_email)
+        gmail_handler.service = gmail_service
         
         logger.info("Authenticating with Calendar API...")
-        if not calendar_handler.authenticate():
-            raise RuntimeError("Failed to authenticate with Calendar API")
+        # calendar_service = auth.get_calendar_service() # This line is no longer needed as calendar_service is now passed to CalendarHandler
+        # calendar_handler.service = calendar_service # This line is no longer needed as calendar_service is now passed to CalendarHandler
+        
+        logger.info("Setting up Vision API...")
+        vision_client = auth.get_vision_client()
+        newsletter_processor.time_extractor.vision_client = vision_client
         
         # Get recent newsletter emails (last 7 days, regardless of read status) from both senders
         days_back = 7
