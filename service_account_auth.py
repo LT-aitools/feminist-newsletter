@@ -57,7 +57,7 @@ class ServiceAccountAuth:
     def get_gmail_service(self, user_email=None):
         """Get authenticated Gmail API service with domain-wide delegation."""
         try:
-            if user_email:
+            if user_email and hasattr(self.credentials, 'with_subject'):
                 # Use domain-wide delegation to act on behalf of the user
                 delegated_credentials = self.credentials.with_subject(user_email)
                 service = build('gmail', 'v1', credentials=delegated_credentials)
