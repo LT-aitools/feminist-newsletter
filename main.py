@@ -92,7 +92,7 @@ def newsletter_processor(request):
         query = f"({' OR '.join([f'from:{sender}' for sender in senders])}) after:{start_str} before:{end_str}"
         logger.info(f"Searching for recent emails with query: {query}")
         results = gmail_handler.service.users().messages().list(
-            userId='me',
+            userId=user_email,
             q=query,
             maxResults=50
         ).execute()
