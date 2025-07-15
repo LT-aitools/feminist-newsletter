@@ -31,14 +31,24 @@ class ServiceAccountAuth:
     def _load_credentials(self):
         """Load service account credentials."""
         try:
-            if not os.path.exists(SERVICE_ACCOUNT_KEY_FILE):
-                raise FileNotFoundError(f"Service account key file not found: {SERVICE_ACCOUNT_KEY_FILE}")
+            # First try to use default credentials (for Cloud Functions)
+            try:
+                from google.auth import default
+                self.credentials, project = default(scopes=SCOPES)
+                self.logger.info(f"Using default credentials for project: {project}")
+                return
+            except Exception as e:
+                self.logger.debug(f"Default credentials not available: {str(e)}")
             
-            self.credentials = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_KEY_FILE,
-                scopes=SCOPES
-            )
-            self.logger.info(f"Service account credentials loaded: {self.credentials.service_account_email}")
+            # Fallback to service account key file (for local development)
+            if os.path.exists(SERVICE_ACCOUNT_KEY_FILE):
+                self.credentials = service_account.Credentials.from_service_account_file(
+                    SERVICE_ACCOUNT_KEY_FILE,
+                    scopes=SCOPES
+                )
+                self.logger.info(f"Service account credentials loaded from file: {self.credentials.service_account_email}")
+            else:
+                raise FileNotFoundError(f"Service account key file not found: {SERVICE_ACCOUNT_KEY_FILE}")
             
         except Exception as e:
             self.logger.error(f"Error loading service account credentials: {str(e)}")
