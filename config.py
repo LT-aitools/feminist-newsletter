@@ -8,6 +8,9 @@ from typing import Dict, Any
 CONFIG: Dict[str, Any] = {
     'calendar_name': 'Feminist Newsletter Events',
     'calendar_id': 'c_6eb21b1df804ac26dcbb4cccf5b96af36aa9a53fda9c10d11ddbb3219d191498@group.calendar.google.com',
+    'test_calendar_id': 'c1745d57a6fcefc58c38ea8d81a44075e01cd619485db9eda00441a03362eb7b@group.calendar.google.com',
+    'use_test_calendar': False,  # Set to False for production, True for demo/testing
+    'use_service_account': True,  # Use service account for Gmail and Vision APIs
     'timezone': 'Asia/Jerusalem',
     'newsletter_sender': 'sharon.orsh@56456773.mailchimpapp.com',
     'gmail_account': 'hello@letstalkaitools.com',  # Account that owns the calendar

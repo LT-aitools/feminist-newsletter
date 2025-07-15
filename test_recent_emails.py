@@ -1,9 +1,7 @@
 """
-Main Cloud Function entry point for newsletter automation.
+Test script to process recent newsletter emails regardless of read status, for both main and backup senders.
 """
 import logging
-import json
-from typing import Dict, Any
 from datetime import datetime, timedelta
 
 from newsletter_processor import NewsletterProcessor, EventData
@@ -13,24 +11,15 @@ from config import get_config
 
 
 def setup_logging():
-    """Configure logging for the Cloud Function."""
+    """Configure logging."""
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
 
-def newsletter_processor(request):
-    """
-    Main Cloud Function entry point.
-    Triggered weekly by Cloud Scheduler.
-    
-    Args:
-        request: Flask request object (for HTTP triggers)
-    
-    Returns:
-        JSON response with processing summary
-    """
+def test_recent_emails():
+    """Test processing recent newsletter emails (not just unread)."""
     setup_logging()
     logger = logging.getLogger(__name__)
     
@@ -46,15 +35,10 @@ def newsletter_processor(request):
         'errors': []
     }
     
-    # Get last processed date from environment variable
-    import os
-    last_processed_date = os.getenv('LAST_PROCESSED_DATE', 'Never')
-    logger.info(f"Last processed date: {last_processed_date}")
-    
     start_time = datetime.now()
     
     try:
-        logger.info("=== STARTING NEWSLETTER PROCESSING ===")
+        logger.info("=== TESTING RECENT NEWSLETTER PROCESSING ===")
         
         # Initialize handlers
         gmail_handler = GmailHandler()
@@ -107,7 +91,7 @@ def newsletter_processor(request):
         if not emails:
             logger.info("No recent newsletter emails found")
             stats['processing_time'] = (datetime.now() - start_time).total_seconds()
-            return create_response(stats, "No emails to process")
+            return stats
         
         logger.info(f"Processing {len(emails)} filtered recent newsletter emails")
         stats['emails_processed'] = len(emails)
@@ -154,9 +138,6 @@ def newsletter_processor(request):
                         stats['errors'].append(f"Event processing error: {str(e)}")
                         continue
                 
-                # Mark email as processed (if write permissions available)
-                gmail_handler.mark_as_processed(email['id'])
-                
             except Exception as e:
                 logger.error(f"Error processing email {i+1}: {str(e)}")
                 stats['errors'].append(f"Email processing error: {str(e)}")
@@ -165,15 +146,6 @@ def newsletter_processor(request):
         # Calculate processing time
         stats['processing_time'] = (datetime.now() - start_time).total_seconds()
         
-        # Update last processed date if emails were processed
-        if stats['emails_processed'] > 0:
-            current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            logger.info(f"🎯 EMAILS PROCESSED - Last processed date: {current_date}")
-            stats['last_processed_date'] = current_date
-        else:
-            logger.info(f"📭 No emails processed - Last processed date: {last_processed_date}")
-            stats['last_processed_date'] = last_processed_date
-        
         # Log summary
         logger.info("=== PROCESSING SUMMARY ===")
         logger.info(f"Emails processed: {stats['emails_processed']}")
@@ -181,26 +153,23 @@ def newsletter_processor(request):
         logger.info(f"Events skipped: {stats['events_skipped']}")
         logger.info(f"Events failed: {stats['events_failed']}")
         logger.info(f"Processing time: {stats['processing_time']:.2f} seconds")
-        logger.info(f"Last processed date: {last_processed_date}")
         
         if stats['errors']:
             logger.warning(f"Errors encountered: {len(stats['errors'])}")
             for error in stats['errors']:
                 logger.warning(f"  - {error}")
         
-        return create_response(stats, "Processing completed successfully")
+        return stats
         
     except Exception as e:
         logger.error(f"Critical error in newsletter processing: {str(e)}")
         stats['processing_time'] = (datetime.now() - start_time).total_seconds()
         stats['errors'].append(f"Critical error: {str(e)}")
-        return create_response(stats, f"Processing failed: {str(e)}", status_code=500)
+        return stats
 
 
-def create_event_body(event: EventData, config: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Create the event body for Google Calendar API.
-    """
+def create_event_body(event: EventData, config: dict) -> dict:
+    """Create the event body for Google Calendar API."""
     from datetime import timedelta
     
     # Combine date and time
@@ -228,56 +197,19 @@ def create_event_body(event: EventData, config: Dict[str, Any]) -> Dict[str, Any
         }
     }
     
-    # Add location if available
-    if event.location:
-        event_body['location'] = event.location
-    
-    # Add organizer if available
-    if event.organizer:
-        event_body['description'] += f"\n\nמארגן: {event.organizer}"
-    
-    # Add links if available
-    if event.links:
-        links_text = "\n\nקישורים רלוונטיים:\n"
-        for link in event.links:
-            links_text += f"🔗 {link['label']}: {link['url']}\n"
-        event_body['description'] += links_text
-    
     return event_body
 
 
 def create_event_description(event: EventData) -> str:
-    """
-    Create formatted event description.
-    """
-    description = event.description
-    return f"{description}\n\n---\nנוצר אוטומטית מהניוזלטר הפמיניסטי השבועי"
+    """Create event description with source information."""
+    description = f"Source: Feminist Newsletter\n"
+    if event.description:
+        description += f"\n{event.description}\n"
+    if event.link:
+        description += f"\nInvitation link: {event.link}"
+    return description
 
 
-def create_response(stats: Dict[str, Any], message: str, status_code: int = 200) -> Dict[str, Any]:
-    """
-    Create a standardized response for the Cloud Function.
-    """
-    return {
-        'statusCode': status_code,
-        'body': json.dumps({
-            'message': message,
-            'timestamp': datetime.now().isoformat(),
-            'statistics': stats
-        }, ensure_ascii=False),
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        }
-    }
-
-
-# For local testing
 if __name__ == "__main__":
-    # Simulate a Cloud Function request
-    class MockRequest:
-        pass
-    
-    request = MockRequest()
-    result = newsletter_processor(request)
-    print(json.dumps(result, indent=2, ensure_ascii=False)) 
+    result = test_recent_emails()
+    print(f"\nFinal result: {result}") 

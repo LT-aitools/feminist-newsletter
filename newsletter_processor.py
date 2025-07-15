@@ -204,7 +204,7 @@ class NewsletterProcessor:
                     for link in links:
                         if link['label'] in block:
                             matching_links.append(link)
-
+            
             # Create event data
             event = EventData(
                 title=title,
@@ -288,7 +288,7 @@ class NewsletterProcessor:
             
         except Exception as e:
             self.logger.error(f"Error enhancing event with time extraction: {str(e)}")
-            return event
+        return event
     
     def check_for_duplicate_event(self, calendar_service, title: str, date: datetime) -> Optional[Dict[str, Any]]:
         """

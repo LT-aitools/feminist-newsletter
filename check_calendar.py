@@ -31,11 +31,11 @@ def check_calendar():
         if not calendar_handler.authenticate():
             raise RuntimeError("Failed to authenticate with Calendar API")
         
-        # Get events for the next year
-        start_date = datetime.now()
-        end_date = start_date + timedelta(days=365)
+        # Get events for the past week and next year
+        start_date = datetime.now() - timedelta(days=7)  # Include past week
+        end_date = datetime.now() + timedelta(days=365)
         
-        logger.info("Fetching events from calendar...")
+        logger.info(f"Fetching events from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}...")
         events = calendar_handler.get_events(start_date, end_date, max_results=1000)
         
         if not events:

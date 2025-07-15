@@ -7,7 +7,7 @@ import re
 import requests
 from typing import Optional, Tuple, List, Dict
 from urllib.parse import urlparse, parse_qs
-import cv2
+# import cv2  # DEPRECATED: No longer used, replaced by Google Cloud Vision API
 import numpy as np
 from PIL import Image
 from io import BytesIO
@@ -184,6 +184,7 @@ class TimeExtractor:
             self.logger.error(f"Error extracting time from image (Vision API): {str(e)}")
             return None
     
+    # All cv2-based image processing functions below are deprecated and should not be used.
     def _preprocess_image(self, image: np.ndarray) -> np.ndarray:
         """
         Preprocess image to improve OCR accuracy.
