@@ -31,24 +31,58 @@ class ServiceAccountAuth:
     def _load_credentials(self):
         """Load service account credentials."""
         try:
-            # First try to use default credentials (for Cloud Functions)
-            try:
-                from google.auth import default
-                self.credentials, project = default(scopes=SCOPES)
-                self.logger.info(f"Using default credentials for project: {project}")
-                return
-            except Exception as e:
-                self.logger.debug(f"Default credentials not available: {str(e)}")
+            # Check if we're in a Cloud Function environment
+            is_cloud_function = os.getenv('FUNCTION_TARGET') is not None or os.getenv('K_SERVICE') is not None
             
-            # Fallback to service account key file (for local development)
-            if os.path.exists(SERVICE_ACCOUNT_KEY_FILE):
-                self.credentials = service_account.Credentials.from_service_account_file(
-                    SERVICE_ACCOUNT_KEY_FILE,
-                    scopes=SCOPES
-                )
-                self.logger.info(f"Service account credentials loaded from file: {self.credentials.service_account_email}")
+            if is_cloud_function:
+                # In Cloud Function environment, use default credentials
+                try:
+                    from google.auth import default
+                    self.credentials, project = default(scopes=SCOPES)
+                    self.logger.info(f"Using default credentials for project: {project}")
+                    
+                    # Log service account information
+                    if hasattr(self.credentials, 'service_account_email'):
+                        self.logger.info(f"Service account: {self.credentials.service_account_email}")
+                        if "vision-api-access" in self.credentials.service_account_email:
+                            self.logger.info("✅ Using correct service account for domain-wide delegation")
+                        elif self.credentials.service_account_email == "default":
+                            self.logger.warning("⚠️ Using default service account - domain-wide delegation may fail")
+                    else:
+                        self.logger.warning("Default credentials are not a service account")
+                    
+                    return
+                except Exception as e:
+                    self.logger.error(f"Error with default credentials in Cloud Function: {str(e)}")
+                    raise
             else:
-                raise FileNotFoundError(f"Service account key file not found: {SERVICE_ACCOUNT_KEY_FILE}")
+                # Local development - try default credentials first, then fallback to key file
+                try:
+                    from google.auth import default
+                    self.credentials, project = default(scopes=SCOPES)
+                    self.logger.info(f"Using default credentials for project: {project}")
+                    
+                    # Log service account information
+                    if hasattr(self.credentials, 'service_account_email'):
+                        self.logger.info(f"Service account: {self.credentials.service_account_email}")
+                        if "vision-api-access" in self.credentials.service_account_email:
+                            self.logger.info("✅ Using correct service account for domain-wide delegation")
+                    else:
+                        self.logger.warning("Default credentials are not a service account")
+                    
+                    return
+                except Exception as e:
+                    self.logger.debug(f"Default credentials not available: {str(e)}")
+                
+                # Fallback to service account key file (for local development)
+                if os.path.exists(SERVICE_ACCOUNT_KEY_FILE):
+                    self.credentials = service_account.Credentials.from_service_account_file(
+                        SERVICE_ACCOUNT_KEY_FILE,
+                        scopes=SCOPES
+                    )
+                    self.logger.info(f"Service account credentials loaded from file: {self.credentials.service_account_email}")
+                else:
+                    raise FileNotFoundError(f"Service account key file not found: {SERVICE_ACCOUNT_KEY_FILE}")
             
         except Exception as e:
             self.logger.error(f"Error loading service account credentials: {str(e)}")
@@ -59,9 +93,18 @@ class ServiceAccountAuth:
         try:
             if user_email and hasattr(self.credentials, 'with_subject'):
                 # Use domain-wide delegation to act on behalf of the user
-                delegated_credentials = self.credentials.with_subject(user_email)
-                service = build('gmail', 'v1', credentials=delegated_credentials)
-                self.logger.info(f"Gmail API service created for user: {user_email}")
+                try:
+                    delegated_credentials = self.credentials.with_subject(user_email)
+                    service = build('gmail', 'v1', credentials=delegated_credentials)
+                    self.logger.info(f"Gmail API service created for user: {user_email}")
+                    return service
+                except Exception as e:
+                    self.logger.warning(f"Domain-wide delegation failed for {user_email}: {str(e)}")
+                    self.logger.info("Falling back to service account's own mailbox")
+                    # Fallback to service account's own mailbox
+                    service = build('gmail', 'v1', credentials=self.credentials)
+                    self.logger.info("Gmail API service created for service account mailbox")
+                    return service
             else:
                 # Use default service account (limited access)
                 service = build('gmail', 'v1', credentials=self.credentials)

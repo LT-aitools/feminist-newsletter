@@ -62,6 +62,12 @@ def newsletter_processor(request):
         logger.info("Setting up service account authentication...")
         auth = ServiceAccountAuth()
         
+        # Verify service account is working
+        if not auth.credentials:
+            raise RuntimeError("Failed to initialize service account credentials")
+        
+        logger.info(f"Using service account: {auth.credentials.service_account_email}")
+        
         # Initialize handlers with service account
         gmail_handler = GmailHandler()
         calendar_service = auth.get_calendar_service()
