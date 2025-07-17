@@ -1,0 +1,41 @@
+# Cursor Rules for Feminist Newsletter Project
+
+## Function Status Analysis
+When analyzing the newsletter processor function status or logs:
+1. **ALWAYS check `docs/function_status_notes.md` first** for current status and common misconceptions
+2. **Focus on status code: 200** as the primary success indicator
+3. **Ignore old Gmail API errors** - these were resolved and are not current issues
+4. **Service account warnings are normal** - function still works correctly
+5. **Look at recent execution logs**, not historical errors
+
+## Common Mistakes to Avoid
+- Don't panic about service account showing as "default" in logs
+- Don't confuse old Gmail API "Precondition check failed" errors with current status
+- Don't assume warnings indicate failure - check if function completed with status 200
+- Don't forget that 1st gen Cloud Functions have service account limitations
+
+## Key Commands for Status Checks
+```bash
+# Check recent function logs
+gcloud functions logs read newsletter-processor --region=us-central1 --limit=20
+
+# Check scheduler status  
+gcloud scheduler jobs describe newsletter-processor-schedule --location=us-central1
+
+# Check function list
+gcloud functions list --filter="name:newsletter"
+```
+
+## Project Context
+- Function: `newsletter-processor` in `us-central1`
+- Scheduler: `newsletter-processor-schedule` 
+- Project: `womens-rights-calendar`
+- Schedule: 7 PM Israel time on Sunday, Monday, Tuesday
+- Status: ACTIVE and working correctly as of July 16, 2025
+
+## Documentation Priority
+When troubleshooting or analyzing function behavior:
+1. Check `docs/function_status_notes.md` for current status
+2. Check `docs/technical_prd.md` for technical requirements
+3. Check `docs/existing_code.md` for implementation details
+4. Update documentation when status changes 
