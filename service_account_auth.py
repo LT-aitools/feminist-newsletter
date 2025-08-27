@@ -35,8 +35,50 @@ class ServiceAccountAuth:
             is_cloud_function = os.getenv('FUNCTION_TARGET') is not None or os.getenv('K_SERVICE') is not None
             
             if is_cloud_function:
-                # In Cloud Function environment, use default credentials
+                # In Cloud Function environment, try to use the configured service account
                 try:
+                    # Try to download service account key from Cloud Storage
+                    try:
+                        from google.cloud import storage
+                        import tempfile
+                        
+                        # Download key file from Cloud Storage
+                        storage_client = storage.Client()
+                        bucket = storage_client.bucket("womens-rights-calendar-keys")
+                        blob = bucket.blob("service-account-key.json")
+                        
+                        # Create temporary file
+                        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
+                            blob.download_to_filename(temp_file.name)
+                            temp_key_file = temp_file.name
+                        
+                        # Use the downloaded key file
+                        self.credentials = service_account.Credentials.from_service_account_file(
+                            temp_key_file,
+                            scopes=SCOPES
+                        )
+                        self.logger.info(f"🔄 Using service account from Cloud Storage: {self.credentials.service_account_email}")
+                        
+                        # Clean up temporary file
+                        os.unlink(temp_key_file)
+                        return
+                        
+                    except Exception as storage_error:
+                        self.logger.warning(f"Could not download key from Cloud Storage: {str(storage_error)}")
+                    
+                    # Check if GOOGLE_APPLICATION_CREDENTIALS is set
+                    if os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+                        # Use the service account key file if available
+                        key_file = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+                        if os.path.exists(key_file):
+                            self.credentials = service_account.Credentials.from_service_account_file(
+                                key_file,
+                                scopes=SCOPES
+                            )
+                            self.logger.info(f"🔄 Using service account from GOOGLE_APPLICATION_CREDENTIALS: {self.credentials.service_account_email}")
+                            return
+                    
+                    # Fallback to default credentials
                     from google.auth import default
                     self.credentials, project = default(scopes=SCOPES)
                     self.logger.info(f"Using default credentials for project: {project}")
@@ -48,6 +90,7 @@ class ServiceAccountAuth:
                             self.logger.info("✅ Using correct service account for domain-wide delegation")
                         elif self.credentials.service_account_email == "default":
                             self.logger.warning("⚠️ Using default service account - domain-wide delegation may fail")
+                            self.logger.info("This is expected for 1st gen Cloud Functions - function should still work")
                     else:
                         self.logger.warning("Default credentials are not a service account")
                     

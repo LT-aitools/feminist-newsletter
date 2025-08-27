@@ -236,12 +236,20 @@ class NewsletterProcessor:
         Attempt to extract accurate time from invitation links using OCR.
         """
         try:
-            # Look for invitation links
+            # Look for invitation links first
             invitation_links = [link for link in event.links 
                               if 'בהזמנה' in link.get('label', '')]
             
+            # If no invitation links, try regular links as fallback
             if not invitation_links:
-                return event
+                regular_links = [link for link in event.links 
+                               if 'בלינק' in link.get('label', '')]
+                if regular_links:
+                    self.logger.info(f"No invitation links found for event '{event.title}', trying {len(regular_links)} regular links")
+                    invitation_links = regular_links
+                else:
+                    self.logger.info(f"No invitation or regular links found for event '{event.title}'")
+                    return event
             
             # Try to extract time from each invitation link until one succeeds
             for i, link in enumerate(invitation_links):

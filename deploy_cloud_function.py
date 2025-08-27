@@ -28,7 +28,7 @@ def deploy_cloud_function():
         "--entry-point=newsletter_processor",
         "--region=us-central1",
         "--project=" + project_id,
-        "--gen2",  # Use 2nd gen for better service account support
+        "--no-gen2",  # Use 1st gen as recommended
         "--service-account=vision-api-access@womens-rights-calendar.iam.gserviceaccount.com",  # Specify correct service account
         "--set-env-vars=GCP_PROJECT=" + project_id  # Set only the needed env var, clears all others
     ]

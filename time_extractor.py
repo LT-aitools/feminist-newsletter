@@ -150,12 +150,22 @@ class TimeExtractor:
     def _extract_image_from_html(self, html_content: str) -> Optional[str]:
         """Extract image URL from HTML content if redirect led to a webpage."""
         try:
-            # Look for img tags
+            # First, look for og:image meta tag (usually contains the main invitation image)
+            og_image_pattern = r'<meta[^>]+property=[\'"]og:image[\'"][^>]+content=[\'"]([^\'"]+)[\'"]'
+            og_matches = re.findall(og_image_pattern, html_content, re.IGNORECASE)
+            
+            for match in og_matches:
+                if self._is_image_url(match):
+                    self.logger.info(f"Found og:image: {match}")
+                    return match
+            
+            # Then look for img tags
             img_pattern = r'<img[^>]+src=[\'"]([^\'"]+)[\'"]'
             matches = re.findall(img_pattern, html_content, re.IGNORECASE)
             
             for match in matches:
                 if self._is_image_url(match):
+                    self.logger.info(f"Found img tag: {match}")
                     return match
             
             return None
