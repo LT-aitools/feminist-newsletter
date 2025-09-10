@@ -148,27 +148,59 @@ class TimeExtractor:
         return path.endswith('.pdf')
     
     def _extract_image_from_html(self, html_content: str) -> Optional[str]:
-        """Extract image URL from HTML content if redirect led to a webpage."""
+        """Extract image URL from HTML content, prioritizing current event images."""
         try:
-            # First, look for og:image meta tag (usually contains the main invitation image)
+            # Collect all potential images
+            all_images = []
+            
+            # Look for og:image meta tags
             og_image_pattern = r'<meta[^>]+property=[\'"]og:image[\'"][^>]+content=[\'"]([^\'"]+)[\'"]'
             og_matches = re.findall(og_image_pattern, html_content, re.IGNORECASE)
-            
             for match in og_matches:
                 if self._is_image_url(match):
-                    self.logger.info(f"Found og:image: {match}")
-                    return match
+                    all_images.append({
+                        'url': match,
+                        'type': 'og:image',
+                        'priority': 1  # Lower priority for og:image (often cached/old)
+                    })
             
-            # Then look for img tags
+            # Look for img tags
             img_pattern = r'<img[^>]+src=[\'"]([^\'"]+)[\'"]'
-            matches = re.findall(img_pattern, html_content, re.IGNORECASE)
-            
-            for match in matches:
+            img_matches = re.findall(img_pattern, html_content, re.IGNORECASE)
+            for match in img_matches:
                 if self._is_image_url(match):
-                    self.logger.info(f"Found img tag: {match}")
-                    return match
+                    # Check if it's likely a current event image
+                    priority = 2  # Default priority for img tags
+                    
+                    # Higher priority for images that look like current event images
+                    if any(keyword in match.lower() for keyword in ['2025', 'seminar', 'conference', 'יום-עיון']):
+                        priority = 3
+                    
+                    # Lower priority for obviously old images
+                    if any(keyword in match.lower() for keyword in ['2024', '2023', 'old', 'cache']):
+                        priority = 0
+                    
+                    all_images.append({
+                        'url': match,
+                        'type': 'img',
+                        'priority': priority
+                    })
             
-            return None
+            if not all_images:
+                return None
+            
+            # Sort by priority (highest first), then by type preference
+            all_images.sort(key=lambda x: (x['priority'], x['type'] == 'img'), reverse=True)
+            
+            # Log all found images for debugging
+            self.logger.info(f"Found {len(all_images)} potential images:")
+            for i, img in enumerate(all_images):
+                self.logger.info(f"  {i+1}. {img['type']} (priority {img['priority']}): {img['url']}")
+            
+            # Return the highest priority image
+            selected_image = all_images[0]
+            self.logger.info(f"Selected image: {selected_image['url']} (type: {selected_image['type']}, priority: {selected_image['priority']})")
+            return selected_image['url']
             
         except Exception as e:
             self.logger.error(f"Error extracting image from HTML: {str(e)}")
@@ -350,7 +382,7 @@ class TimeExtractor:
     
     def _find_time_in_text(self, text: str) -> Optional[Dict[str, str]]:
         """
-        Find time patterns in OCR-extracted text.
+        Find time patterns in OCR-extracted text, prioritizing main event start times.
         
         Args:
             text: Text extracted from image
@@ -360,39 +392,66 @@ class TimeExtractor:
             or None if not found
         """
         try:
-            # Look for time patterns
+            # First, collect all time matches with their positions
+            all_times = []
             for pattern in TIME_PATTERNS:
-                matches = re.findall(pattern, text)
-                if matches:
-                    # Handle different pattern formats
-                    if len(matches[0]) == 4:  # Time range: 19:00-21:00
-                        start_hour, start_minute, end_hour, end_minute = matches[0]
+                for match in re.finditer(pattern, text):
+                    if len(match.groups()) == 4:  # Time range: 19:00-21:00
+                        start_hour, start_minute, end_hour, end_minute = match.groups()
                         start_time = f"{int(start_hour):02d}:{int(start_minute):02d}"
                         end_time = f"{int(end_hour):02d}:{int(end_minute):02d}"
-                        return {'start': start_time, 'end': end_time}
-                    elif len(matches[0]) == 2:  # Single time: 19:00
-                        hour, minute = matches[0]
+                        all_times.append({
+                            'start': start_time,
+                            'end': end_time,
+                            'position': match.start(),
+                            'context': text[max(0, match.start()-30):match.end()+30]
+                        })
+                    elif len(match.groups()) == 2:  # Single time: 19:00
+                        hour, minute = match.groups()
                         time = f"{int(hour):02d}:{int(minute):02d}"
-                        return {'start': time}
+                        all_times.append({
+                            'start': time,
+                            'position': match.start(),
+                            'context': text[max(0, match.start()-30):match.end()+30]
+                        })
             
-            # Look for common Hebrew time patterns with more strict validation
-            hebrew_patterns = [
-                r'(\d{1,2})\s*:\s*(\d{2})',  # 19 : 00
-                r'(\d{1,2}):(\d{2})',        # 19:00
-                r'(\d{1,2})\.(\d{2})',       # 19.00
-            ]
+            if not all_times:
+                return None
             
-            for pattern in hebrew_patterns:
-                matches = re.findall(pattern, text)
-                if matches:
-                    hour, minute = matches[0]
-                    # Validate time range with more strict rules for event times
-                    hour_int = int(hour)
-                    minute_int = int(minute)
-                    if (8 <= hour_int <= 23 and 0 <= minute_int <= 59 and 
-                        minute_int % 5 == 0):  # Most event times are on 5-minute intervals
-                        time = f"{hour_int:02d}:{minute_int:02d}"
-                        return {'start': time}
+            # Sort by position in text (appearance order)
+            all_times.sort(key=lambda x: x['position'])
+            
+            # Filter out times that are clearly from old events or date references
+            filtered_times = []
+            for time_info in all_times:
+                context = time_info['context'].lower()
+                time_str = time_info['start']
+                
+                # Skip times that appear to be from old events or date references
+                if any(skip_word in context for skip_word in ['2025', 'תשפייה', '|']):
+                    self.logger.debug(f"Skipping time {time_str} - appears to be from old event: {context}")
+                    continue
+                
+                # Skip very early morning times that are likely registration times
+                if time_str in ['08:30', '09:00', '09:15', '09:45']:
+                    # Only skip if it's clearly a registration/gathering time
+                    if any(reg_word in context for reg_word in ['התכנסות', 'פתיחה', 'ברכות']):
+                        self.logger.debug(f"Skipping time {time_str} - appears to be registration time: {context}")
+                        continue
+                
+                filtered_times.append(time_info)
+            
+            # If we have filtered times, use the first one (main event start)
+            if filtered_times:
+                best_time = filtered_times[0]
+                self.logger.info(f"Selected time {best_time['start']} from context: {best_time['context']}")
+                return {'start': best_time['start']}
+            
+            # Fallback: if no filtered times, use the first time found
+            if all_times:
+                fallback_time = all_times[0]
+                self.logger.warning(f"Using fallback time {fallback_time['start']} from context: {fallback_time['context']}")
+                return {'start': fallback_time['start']}
             
             return None
             
