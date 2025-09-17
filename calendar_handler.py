@@ -87,7 +87,7 @@ class CalendarHandler:
                 
                 # Save the credentials for the next run (only if not in Cloud Functions)
                 if not os.getenv('OAUTH_CREDENTIALS') and os.path.exists('token.json'):
-                    with open('token.json', 'w') as token:
+                    with open('token.json', 'w', encoding='utf-8') as token:
                         token.write(creds.to_json())
                     self.logger.info("OAuth2 credentials saved to token.json")
             

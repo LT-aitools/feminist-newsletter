@@ -36,7 +36,7 @@ def create_oauth_credentials():
             creds = flow.run_local_server(port=0)
         
         # Save the credentials for the next run
-        with open('token.json', 'w') as token:
+        with open('token.json', 'w', encoding='utf-8') as token:
             token.write(creds.to_json())
     
     return creds
@@ -58,7 +58,7 @@ def create_client_secrets():
         }
     }
     
-    with open('client_secrets.json', 'w') as f:
+    with open('client_secrets.json', 'w', encoding='utf-8') as f:
         json.dump(client_secrets, f, indent=2)
     
     print("⚠️ Created basic client_secrets.json")

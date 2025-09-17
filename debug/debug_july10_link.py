@@ -36,6 +36,7 @@ def debug_july10_link():
         
         # Follow the redirect and get the final URL
         response = requests.get(test_url, allow_redirects=True, timeout=30)
+        response.raise_for_status()
         final_url = response.url
         print(f"   Final URL after redirect: {final_url}")
         print(f"   Response status: {response.status_code}")
