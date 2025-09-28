@@ -58,16 +58,40 @@ def extract_event_blocks_from_newsletter(content: str) -> List[str]:
     Extract event blocks from newsletter content.
     Based on the existing Apps Script extractEventBlocksFromNewsletter function.
     """
-    # Split by 'ביום' (Hebrew for 'on day') to find event blocks
-    blocks = re.split(r'(?=ביום)', content)
+    # Improved extraction using more specific patterns
+    # Pattern 1: "ביום [day], ה[date]"
+    pattern1 = r'ביום\s+[^,]+,\s*ה\d{1,2}/\d{1,2}[^.]*\.'
     
-    # Filter blocks that are long enough and contain date patterns
+    # Pattern 2: "מחר, יום [day], ה[date]" 
+    pattern2 = r'מחר,\s*יום\s+[^,]+,\s*ה\d{1,2}/\d{1,2}[^.]*\.'
+    
+    # Pattern 3: "ביום [day] ה[date]"
+    pattern3 = r'ביום\s+[^,]*ה\d{1,2}/\d{1,2}[^.]*\.'
+    
+    # Find all matches
+    matches = []
+    for pattern in [pattern1, pattern2, pattern3]:
+        matches.extend(re.findall(pattern, content))
+    
+    # Clean up matches
     valid_blocks = []
-    for block in blocks:
-        block = block.strip()
-        if (len(block) > 15 and 
-            re.search(r'\d{1,2}/\d{1,2}', block)):
-            valid_blocks.append(block)
+    for match in matches:
+        # Remove extra whitespace
+        cleaned = re.sub(r'\s+', ' ', match.strip())
+        if len(cleaned) > 20:  # Only keep substantial blocks
+            valid_blocks.append(cleaned)
+    
+    # Fallback to original method if no matches found
+    if not valid_blocks:
+        # Split by 'ביום' (Hebrew for 'on day') to find event blocks
+        blocks = re.split(r'(?=ביום)', content)
+        
+        # Filter blocks that are long enough and contain date patterns
+        for block in blocks:
+            block = block.strip()
+            if (len(block) > 15 and 
+                re.search(r'\d{1,2}/\d{1,2}', block)):
+                valid_blocks.append(block)
     
     return valid_blocks
 
@@ -116,32 +140,47 @@ def extract_title(block: str) -> str:
     Extract event title from block using multiple patterns.
     Based on the existing Apps Script extractTitle function.
     """
+    # Remove the date/time part first to focus on the event description
+    # Remove patterns like "ביום ראשון, ה21/9" or "מחר, יום ראשון, ה21/9"
+    cleaned_block = re.sub(r'(ביום|מחר, יום)\s+[^,]*,\s*ה\d{1,2}/\d{1,2}', '', block)
+    cleaned_block = re.sub(r'ביום\s+[^,]*ה\d{1,2}/\d{1,2}', '', cleaned_block)
+    
     # Try multiple patterns to extract the title
     
     # Pattern 1: בנושא "title"
-    match = re.search(r'בנושא "([^"]+)"', block)
+    match = re.search(r'בנושא "([^"]+)"', cleaned_block)
     if match:
         return match.group(1).strip()
     
     # Pattern 2: בנושא 'title'
-    match = re.search(r'בנושא \'([^\']+)\'', block)
+    match = re.search(r'בנושא \'([^\']+)\'', cleaned_block)
     if match:
         return match.group(1).strip()
     
     # Pattern 3: בנושא title.
-    match = re.search(r'בנושא ([^.]+)\.', block)
+    match = re.search(r'בנושא ([^.]+)\.', cleaned_block)
     if match:
         return match.group(1).strip()
     
-    # Pattern 4: Any quoted text
-    match = re.search(r'"([^"]+)"', block)
-    if match:
-        return match.group(1).strip()
+    # Pattern 4: Look for movie titles in quotes
+    movie_match = re.search(r'"([^"]+)"', cleaned_block)
+    if movie_match:
+        return movie_match.group(1).strip()
     
-    # Pattern 5: Event description after מפגש/הרצאה/דיון
-    match = re.search(r'(מפגש|הרצאה|דיון)\s+([^.]+)', block)
+    # Pattern 5: Look for event descriptions after "מפגש של" or "הקרנת הסרט"
+    event_match = re.search(r'(מפגש של|הקרנת הסרט)\s+([^.]+)', cleaned_block)
+    if event_match:
+        return event_match.group(2).strip()
+    
+    # Pattern 6: Event description after מפגש/הרצאה/דיון
+    match = re.search(r'(מפגש|הרצאה|דיון)\s+([^.]+)', cleaned_block)
     if match:
         return match.group(2).strip()
+    
+    # Pattern 7: Any quoted text
+    match = re.search(r'"([^"]+)"', cleaned_block)
+    if match:
+        return match.group(1).strip()
     
     return 'אירוע זכויות נשים'
 
