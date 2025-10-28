@@ -11,7 +11,7 @@ Cloud Scheduler (Weekly Trigger) → Cloud Function → Cloud Vision API → Goo
 
 Core Components (PRODUCTION READY)
 Cloud Function: Main processing logic (1st gen, deployed and operational)
-Cloud Scheduler: Weekly automation trigger (Sunday, Monday, Tuesday at 7 PM Israel time)
+Cloud Scheduler: Weekly automation trigger (Saturday 9 PM, Sunday 7 PM, Monday 7 PM Israel time)
 Cloud Vision API: OCR for time extraction (implemented and working)
 Gmail API: Email processing (service account authentication)
 Google Calendar API: Event creation (service account authentication)
@@ -152,7 +152,7 @@ Status: ACTIVE and OPERATIONAL
 
 # Cloud Scheduler Configuration
 Name: newsletter-processor-schedule
-Schedule: "0 19 * * 0,1,2"  # Sunday, Monday, Tuesday at 7 PM
+Schedule: "0 19 * * 0,1" (Sunday, Monday at 7 PM) + "0 21 * * 6" (Saturday at 9 PM)
 Timezone: Asia/Jerusalem
 Target: Cloud Function HTTP endpoint
 Status: ENABLED and RUNNING

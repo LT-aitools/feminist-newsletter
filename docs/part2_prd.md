@@ -79,7 +79,7 @@ Some level of manual verification will still be acceptable for edge cases
 ### Current Implementation
 - **Technology**: Google Cloud Vision API for OCR processing
 - **Deployment**: Running in production on Google Cloud Functions
-- **Schedule**: Automated processing 3x per week (Sunday, Monday, Tuesday at 7 PM Israel time)
+- **Schedule**: Automated processing 3x per week (Saturday 9 PM, Sunday 7 PM, Monday 7 PM Israel time)
 - **Authentication**: Service account with domain-wide delegation
 
 ### Performance Metrics (Current Production)

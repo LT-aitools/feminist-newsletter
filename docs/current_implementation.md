@@ -216,7 +216,7 @@ CONFIG = {
 - **Trigger**: HTTP (called by Cloud Scheduler)
 
 ### Cloud Scheduler
-- **Schedule**: "0 19 * * 0,1,2" (Sunday, Monday, Tuesday at 7 PM)
+- **Schedule**: "0 19 * * 0,1" (Sunday, Monday at 7 PM) + "0 21 * * 6" (Saturday at 9 PM)
 - **Timezone**: Asia/Jerusalem
 - **Target**: Cloud Function HTTP endpoint
 

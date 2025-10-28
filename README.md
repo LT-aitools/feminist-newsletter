@@ -12,7 +12,7 @@ This project automates the processing of feminist newsletter emails from the Isr
 - **Extracts accurate times** from invitation images using Google Cloud Vision API OCR
 - **Creates calendar events** in Google Calendar with proper timezone handling
 - **Prevents duplicates** using smart duplicate detection
-- **Runs on schedule** via Cloud Scheduler (Sunday, Monday, Tuesday at 7 PM Israel time)
+- **Runs on schedule** via Cloud Scheduler (Saturday 9 PM, Sunday 7 PM, Monday 7 PM Israel time)
 
 ### 🔧 **Key Features:**
 - **Hebrew Text Processing**: Robust RTL text handling and Hebrew date/time parsing
@@ -25,7 +25,7 @@ This project automates the processing of feminist newsletter emails from the Isr
 
 ### 🚀 **Current Status:**
 - ✅ **Fully Deployed**: Cloud Function is live and operational (1st gen)
-- ✅ **Automated Scheduling**: Runs 3x per week via Cloud Scheduler
+- ✅ **Automated Scheduling**: Runs 3x per week via Cloud Scheduler (Saturday 9 PM, Sunday 7 PM, Monday 7 PM)
 - ✅ **Service Account Integration**: Secure authentication with Gmail, Calendar, and Vision APIs
 - ✅ **OCR Time Extraction**: Successfully extracting times from invitation images
 - ✅ **Public Calendar**: Calendar is public and accessible to subscribers
@@ -237,8 +237,17 @@ TIME_PATTERNS = [
 
 2. **Set up Cloud Scheduler**:
    ```bash
+   # Main schedule: Sunday & Monday at 7 PM
    gcloud scheduler jobs create http newsletter-processor-schedule \
-     --schedule="0 19 * * 0,1,2" \
+     --schedule="0 19 * * 0,1" \
+     --time-zone="Asia/Jerusalem" \
+     --uri="YOUR_FUNCTION_URL" \
+     --http-method=POST \
+     --location=us-central1
+   
+   # Saturday schedule: Saturday at 9 PM
+   gcloud scheduler jobs create http newsletter-processor-saturday \
+     --schedule="0 21 * * 6" \
      --time-zone="Asia/Jerusalem" \
      --uri="YOUR_FUNCTION_URL" \
      --http-method=POST \
